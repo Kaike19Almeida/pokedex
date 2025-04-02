@@ -8,34 +8,15 @@ export default function Home() {
   const [pokemonName, setPokemonName] = useState("");
   const [pokemonData, setPokemonData] = useState(null);
   const [error, setError] = useState("");
-  const [pokemonList, setPokemonList] = useState([]);
   const [typeList, setTypeList] = useState([]);
-  const [allPokemon, setAllPokemon] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
+  const [shinyStates, setShinyStates] = useState({});
   const itemsPerPage = 8;
 
   const types = [
     "normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground", 
     "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"
   ];
-
-  useEffect(() => {
-    async function fetchAllPokemon() {
-      try {
-        const response = await axios.get("https://pokeapi.co/api/v2/pokemon?limit=151");
-        const detailedData = await Promise.all(
-          response.data.results.map(async (pokemon) => {
-            const res = await axios.get(pokemon.url);
-            return res.data;
-          })
-        );
-        setAllPokemon(detailedData);
-      } catch (err) {
-        setError("Erro ao carregar a lista de Pokémon.");
-      }
-    }
-    fetchAllPokemon();
-  }, []);
 
   async function fetchPokemon() {
     if (!pokemonName.trim()) return;
@@ -62,10 +43,18 @@ export default function Home() {
       );
       setTypeList(detailedData);
       setCurrentPage(0);
+      setShinyStates({});
       setError("");
     } catch (err) {
       setError("Erro ao carregar Pokémon desse tipo.");
     }
+  }
+
+  function toggleShiny(name) {
+    setShinyStates((prev) => ({
+      ...prev,
+      [name]: !prev[name]
+    }));
   }
 
   const displayedPokemon = typeList.slice(
@@ -75,7 +64,7 @@ export default function Home() {
 
   return (
     <div className="container">
-    <h1 className="pokemon-title">Pokédex</h1>
+      <h1 className="pokemon-title">Pokédex</h1>
 
       <div className="search-container">
         <input
@@ -101,11 +90,12 @@ export default function Home() {
         <div className="pokemon-card">
           <h2>{pokemonData.name.toUpperCase()}</h2>
           <img
-            src={pokemonData.sprites.other["official-artwork"].front_default}
+            src={shinyStates[pokemonData.name] ? pokemonData.sprites.other["official-artwork"].front_shiny : pokemonData.sprites.other["official-artwork"].front_default}
             alt={pokemonData.name}
           />
           <p>Tipo: {pokemonData.types.map((t) => t.type.name).join(", ")}</p>
           <p>Poder: {pokemonData.stats[0].base_stat}</p>
+          <button onClick={() => toggleShiny(pokemonData.name)}>Alternar Shiny</button>
         </div>
       )}
 
@@ -117,11 +107,12 @@ export default function Home() {
               <div key={index} className="pokemon-card">
                 <h3>{p.name.toUpperCase()}</h3>
                 <img
-                  src={p.sprites.other["official-artwork"].front_default}
+                  src={shinyStates[p.name] ? p.sprites.other["official-artwork"].front_shiny : p.sprites.other["official-artwork"].front_default}
                   alt={p.name}
                 />
                 <p>Tipo: {p.types.map((t) => t.type.name).join(", ")}</p>
                 <p>Poder: {p.stats[0].base_stat}</p>
+                <button onClick={() => toggleShiny(p.name)}>Alternar Shiny</button>
               </div>
             ))}
           </div>
