@@ -18,6 +18,27 @@ export default function Home() {
     "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"
   ];
 
+  const typeAdvantages = {
+    normal: [],
+    fire: ["grass", "ice", "bug", "steel"],
+    water: ["fire", "ground", "rock"],
+    electric: ["water", "flying"],
+    grass: ["water", "ground", "rock"],
+    ice: ["grass", "ground", "flying", "dragon"],
+    fighting: ["normal", "ice", "rock", "dark", "steel"],
+    poison: ["grass", "fairy"],
+    ground: ["fire", "electric", "poison", "rock", "steel"],
+    flying: ["grass", "fighting", "bug"],
+    psychic: ["fighting", "poison"],
+    bug: ["grass", "psychic", "dark"],
+    rock: ["fire", "ice", "flying", "bug"],
+    ghost: ["psychic", "ghost"],
+    dragon: ["dragon"],
+    dark: ["psychic", "ghost"],
+    steel: ["ice", "rock", "fairy"],
+    fairy: ["fighting", "dragon", "dark"]
+  };
+
   async function fetchPokemon() {
     if (!pokemonName.trim()) return;
     try {
@@ -57,6 +78,10 @@ export default function Home() {
     }));
   }
 
+  function getAdvantages(types) {
+    return types.flatMap((t) => typeAdvantages[t.type.name] || []).join(", ");
+  }
+
   const displayedPokemon = typeList.slice(
     currentPage * itemsPerPage,
     (currentPage + 1) * itemsPerPage
@@ -94,7 +119,7 @@ export default function Home() {
             alt={pokemonData.name}
           />
           <p>Tipo: {pokemonData.types.map((t) => t.type.name).join(", ")}</p>
-          <p>Poder: {pokemonData.stats[0].base_stat}</p>
+          <p>Vantagem contra: {getAdvantages(pokemonData.types)}</p>
           <button onClick={() => toggleShiny(pokemonData.name)}>Alternar Shiny</button>
         </div>
       )}
@@ -111,7 +136,7 @@ export default function Home() {
                   alt={p.name}
                 />
                 <p>Tipo: {p.types.map((t) => t.type.name).join(", ")}</p>
-                <p>Poder: {p.stats[0].base_stat}</p>
+                <p>Vantagem contra: {getAdvantages(p.types)}</p>
                 <button onClick={() => toggleShiny(p.name)}>Alternar Shiny</button>
               </div>
             ))}
