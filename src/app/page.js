@@ -1,21 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import "./globals.css";
 
 export default function Home() {
-  const [pokemonName, setPokemonName] = useState("");
-  const [pokemonData, setPokemonData] = useState(null);
+  const [regionData, setRegionData] = useState([]);
   const [error, setError] = useState("");
-  const [typeList, setTypeList] = useState([]);
-  const [currentPage, setCurrentPage] = useState(0);
   const [shinyStates, setShinyStates] = useState({});
-  const itemsPerPage = 8;
+  const [pages, setPages] = useState({});
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const types = [
-    "normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground", 
-    "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"
+  const porPagina = 6;
+
+  const regioes = [
+    { nome: "Kanto", offset: 0, limit: 151 },
+    { nome: "Johto", offset: 151, limit: 100 },
+    { nome: "Hoenn", offset: 251, limit: 135 },
+    { nome: "Sinnoh", offset: 386, limit: 107 },
+    { nome: "Unova", offset: 493, limit: 156 },
+    { nome: "Kalos", offset: 649, limit: 72 },
+    { nome: "Alola", offset: 721, limit: 88 },
+    { nome: "Galar", offset: 809, limit: 96 },
+    { nome: "Paldea", offset: 905, limit: 112 }
   ];
 
   const typeAdvantages = {
@@ -39,118 +46,132 @@ export default function Home() {
     fairy: ["fighting", "dragon", "dark"]
   };
 
-  async function fetchPokemon() {
-    if (!pokemonName.trim()) return;
-    try {
-      const response = await axios.get(
-        `https://pokeapi.co/api/v2/pokemon/${pokemonName.toLowerCase()}`
-      );
-      setPokemonData(response.data);
-      setError("");
-    } catch (err) {
-      setPokemonData(null);
-      setError("Pokémon não encontrado! Tente novamente.");
-    }
-  }
-
-  async function fetchPokemonByType(type) {
-    try {
-      const response = await axios.get(`https://pokeapi.co/api/v2/type/${type}`);
-      const detailedData = await Promise.all(
-        response.data.pokemon.slice(0, 20).map(async (p) => {
-          const res = await axios.get(p.pokemon.url);
-          return res.data;
-        })
-      );
-      setTypeList(detailedData);
-      setCurrentPage(0);
-      setShinyStates({});
-      setError("");
-    } catch (err) {
-      setError("Erro ao carregar Pokémon desse tipo.");
-    }
+  function getAdvantages(types) {
+    const advantages = new Set();
+    types.forEach(t => {
+      const vantagens = typeAdvantages[t.type.name] || [];
+      vantagens.forEach(v => advantages.add(v));
+    });
+    return Array.from(advantages).join(", ");
   }
 
   function toggleShiny(name) {
-    setShinyStates((prev) => ({
+    setShinyStates(prev => ({
       ...prev,
       [name]: !prev[name]
     }));
   }
 
-  function getAdvantages(types) {
-    return types.flatMap((t) => typeAdvantages[t.type.name] || []).join(", ");
+  function mudarPagina(regiao, tipo, direcao, total) {
+    const chave = `${regiao}-${tipo}`;
+    const paginaAtual = pages[chave] || 0;
+    const novaPagina = paginaAtual + direcao;
+    if (novaPagina < 0 || novaPagina * porPagina >= total) return;
+
+    setPages(prev => ({
+      ...prev,
+      [chave]: novaPagina
+    }));
   }
 
-  const displayedPokemon = typeList.slice(
-    currentPage * itemsPerPage,
-    (currentPage + 1) * itemsPerPage
-  );
+  async function fetchPokemonsPorRegiao(offset, limit) {
+    try {
+      const res = await axios.get(`https://pokeapi.co/api/v2/pokemon?offset=${offset}&limit=${limit}`);
+      const detalhes = await Promise.all(res.data.results.map(p => axios.get(p.url).then(r => r.data)));
+      return detalhes;
+    } catch {
+      setError("Erro ao carregar Pokémon.");
+      return [];
+    }
+  }
+
+  useEffect(() => {
+    async function carregarTodasRegioes() {
+      const todas = await Promise.all(
+        regioes.map(async (r) => {
+          const pokemons = await fetchPokemonsPorRegiao(r.offset, r.limit);
+          const porTipo = {};
+
+          pokemons.forEach(p => {
+            p.types.forEach(t => {
+              const tipo = t.type.name;
+              if (!porTipo[tipo]) porTipo[tipo] = [];
+              porTipo[tipo].push(p);
+            });
+          });
+
+          return { nome: r.nome, pokemonsPorTipo: porTipo };
+        })
+      );
+
+      setRegionData(todas);
+    }
+
+    carregarTodasRegioes();
+  }, []);
 
   return (
     <div className="container">
       <h1 className="pokemon-title">Pokédex</h1>
 
-      <div className="search-container">
-        <input
-          type="text"
-          placeholder="Digite o nome do Pokémon"
-          value={pokemonName}
-          onChange={(e) => setPokemonName(e.target.value)}
-        />
-        <button onClick={fetchPokemon}>Procurar</button>
-      </div>
-
-      <div className="button-container">
-        {types.map((type) => (
-          <button key={type} onClick={() => fetchPokemonByType(type)}>
-            {type.toUpperCase()}
-          </button>
-        ))}
-      </div>
+      <input
+        className="search"
+        type="text"
+        placeholder="Pesquisar Pokémon..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
+      />
 
       {error && <p className="error">{error}</p>}
 
-      {pokemonData && (
-        <div className="pokemon-card">
-          <h2>{pokemonData.name.toUpperCase()}</h2>
-          <img
-            src={shinyStates[pokemonData.name] ? pokemonData.sprites.other["official-artwork"].front_shiny : pokemonData.sprites.other["official-artwork"].front_default}
-            alt={pokemonData.name}
-          />
-          <p>Tipo: {pokemonData.types.map((t) => t.type.name).join(", ")}</p>
-          <p>Vantagem contra: {getAdvantages(pokemonData.types)}</p>
-          <button onClick={() => toggleShiny(pokemonData.name)}>Alternar Shiny</button>
-        </div>
-      )}
+      {regionData.map((regiao) => (
+        <div key={regiao.nome} className="regiao-bloco">
+          <h2>{regiao.nome}</h2>
 
-      {displayedPokemon.length > 0 && (
-        <div className="pokemon-list">
-          <h2>Pokémon do Tipo</h2>
-          <div className="pokemon-grid">
-            {displayedPokemon.map((p, index) => (
-              <div key={index} className="pokemon-card">
-                <h3>{p.name.toUpperCase()}</h3>
-                <img
-                  src={shinyStates[p.name] ? p.sprites.other["official-artwork"].front_shiny : p.sprites.other["official-artwork"].front_default}
-                  alt={p.name}
-                />
-                <p>Tipo: {p.types.map((t) => t.type.name).join(", ")}</p>
-                <p>Vantagem contra: {getAdvantages(p.types)}</p>
-                <button onClick={() => toggleShiny(p.name)}>Alternar Shiny</button>
+          {Object.entries(regiao.pokemonsPorTipo).map(([tipo, pokemons]) => {
+            const filtrados = pokemons.filter(p =>
+              p.name.toLowerCase().includes(searchTerm)
+            );
+            const chave = `${regiao.nome}-${tipo}`;
+            const pagina = pages[chave] || 0;
+            const inicio = pagina * porPagina;
+            const fim = inicio + porPagina;
+            const paginados = filtrados.slice(inicio, fim);
+
+            if (filtrados.length === 0) return null;
+
+            return (
+              <div key={tipo}>
+                <h3>{tipo.toUpperCase()}</h3>
+                <div className="pokemon-grid">
+                  {paginados.map((p) => (
+                    <div key={p.id} className="pokemon-card">
+                      <h4>{p.name.toUpperCase()}</h4>
+                      <img
+                        src={
+                          shinyStates[p.name]
+                            ? p.sprites.other["official-artwork"].front_shiny
+                            : p.sprites.other["official-artwork"].front_default
+                        }
+                        alt={p.name}
+                      />
+                      <p>Tipo: {p.types.map(t => t.type.name).join(", ")}</p>
+                      <p>Vantagem contra: {getAdvantages(p.types)}</p>
+                      <button onClick={() => toggleShiny(p.name)}>Alternar Shiny</button>
+                    </div>
+                  ))}
+                </div>
+                {filtrados.length > porPagina && (
+                  <div className="paginacao-regiao">
+                    <button onClick={() => mudarPagina(regiao.nome, tipo, -1, filtrados.length)}>Anterior</button>
+                    <button onClick={() => mudarPagina(regiao.nome, tipo, 1, filtrados.length)}>Próximo</button>
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-          <div className="pagination">
-            {currentPage > 0 && (
-              <button onClick={() => setCurrentPage(currentPage - 1)}>Anterior</button>
-            )}
-            {currentPage < Math.ceil(typeList.length / itemsPerPage) - 1 && (
-              <button onClick={() => setCurrentPage(currentPage + 1)}>Próximo</button>
-            )}
-          </div>
+            );
+          })}
         </div>
-      )}
+      ))}
     </div>
   );
 }
